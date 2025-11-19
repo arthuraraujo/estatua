@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Estátua AR com Oxidação</title>
+    
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+
+    <style>
+        body { margin: 0; background-color: #222; color: white; font-family: sans-serif; }
+        
+        /* O visualizador ocupa a tela toda */
+        model-viewer {
+            width: 100%; height: 80vh;
+            background-color: #222;
+        }
+
+        #controls {
+            padding: 20px; background: #111; height: 20vh;
+            text-align: center;
+        }
+        input[type=range] { width: 100%; margin-top: 10px; accent-color: #43b3ae; }
+        h1 { margin: 0; font-size: 1.2rem; color: #ffaa00; }
+    </style>
+</head>
+<body>
+
+    <model-viewer 
+        id="estatua" 
+        src="estatua.glb" 
+        ar 
+        ar-modes="scene-viewer webxr quick-look" 
+        camera-controls 
+        tone-mapping="commerce" 
+        shadow-intensity="1">
+        
+        <button slot="ar-button" style="background-color: white; border-radius: 4px; border: none; position: absolute; top: 16px; right: 16px; padding: 10px;">
+            👋 Ver no meu espaço (AR)
+        </button>
+    </model-viewer>
+
+    <div id="controls">
+        <h1 id="anoTexto">Ano: 1886 (Cobre)</h1>
+        <input type="range" id="slider" min="1886" max="1920" value="1886">
+        <p style="font-size: 0.8em; color: #888">Arraste o slider para oxidar</p>
+    </div>
+
+    <script>
+        const modelViewer = document.querySelector("#estatua");
+        const slider = document.querySelector("#slider");
+        const texto = document.querySelector("#anoTexto");
+
+        // Função auxiliar para misturar cores (Lerp)
+        function lerp(start, end, t) {
+            return start * (1 - t) + end * t;
+        }
+
+        modelViewer.addEventListener("load", () => {
+            // Pega o material do modelo carregado
+            // ATENÇÃO: O modelo GLB precisa ter um material.
+            // Se seu modelo tiver vários materiais, talvez precise iterar sobre eles.
+            const material = modelViewer.model.materials[0];
+
+            // Cores em formato RGB (0 a 1)
+            // Cobre: #b87333 -> [0.72, 0.45, 0.20]
+            // Verde: #2c8a85 -> [0.17, 0.54, 0.52]
+            // Escuro: #4e3223 -> [0.30, 0.19, 0.13]
+
+            const cCobre = [0.72, 0.45, 0.20, 1];
+            const cEscuro = [0.30, 0.19, 0.13, 1];
+            const cVerde = [0.17, 0.54, 0.52, 1];
+
+            slider.addEventListener("input", (e) => {
+                const ano = parseInt(e.target.value);
+                const progresso = (ano - 1886) / (1920 - 1886);
+                texto.innerText = `Ano: ${ano}`;
+
+                let corFinal = [0,0,0,1];
+                let metalicidade = 1;
+                let rugosidade = 0.2;
+
+                if (progresso < 0.4) {
+                    // Fase 1: Escurecer
+                    const t = progresso / 0.4;
+                    corFinal = [
+                        lerp(cCobre[0], cEscuro[0], t),
+                        lerp(cCobre[1], cEscuro[1], t),
+                        lerp(cCobre[2], cEscuro[2], t),
+                        1
+                    ];
+                    metalicidade = lerp(1.0, 0.6, t);
+                    rugosidade = lerp(0.2, 0.6, t);
+                } else {
+                    // Fase 2: Esverdear
+                    const t = (progresso - 0.4) / 0.6;
+                    corFinal = [
+                        lerp(cEscuro[0], cVerde[0], t),
+                        lerp(cEscuro[1], cVerde[1], t),
+                        lerp(cEscuro[2], cVerde[2], t),
+                        1
+                    ];
+                    metalicidade = lerp(0.6, 0.0, t);
+                    rugosidade = lerp(0.6, 1.0, t);
+                }
+
+                // Aplica a nova cor no modelo AR
+                material.pbrMetallicRoughness.setBaseColorFactor(corFinal);
+                material.pbrMetallicRoughness.setMetallicFactor(metalicidade);
+                material.pbrMetallicRoughness.setRoughnessFactor(rugosidade);
+            });
+        });
+    </script>
+</body>
+</html>
