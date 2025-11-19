@@ -3,25 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Estátua AR com Oxidação</title>
+    <title>Estátua Interativa em AR</title>
     
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
 
     <style>
-        body { margin: 0; background-color: #222; color: white; font-family: sans-serif; }
+        body { margin: 0; font-family: sans-serif; background-color: #222; }
         
-        /* O visualizador ocupa a tela toda */
         model-viewer {
-            width: 100%; height: 80vh;
+            width: 100vw; height: 100vh;
             background-color: #222;
         }
 
-        #controls {
-            padding: 20px; background: #111; height: 20vh;
-            text-align: center;
+        /* Painel de Controle Flutuante */
+        #ar-controls {
+            position: absolute;
+            bottom: 30px; left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 400px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid #43b3ae;
+            color: white;
+            z-index: 100; /* Garante que fique sobre o vídeo */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        input[type=range] { width: 100%; margin-top: 10px; accent-color: #43b3ae; }
-        h1 { margin: 0; font-size: 1.2rem; color: #ffaa00; }
+
+        input[type=range] { width: 100%; margin-top: 15px; accent-color: #43b3ae; cursor: pointer; height: 20px;}
+        h2 { margin: 0; font-size: 1.1rem; color: #ffaa00; }
+        p { margin: 5px 0 0 0; font-size: 0.8rem; color: #ccc; }
+
+        /* Botão de Ativar AR personalizado */
+        #ar-button {
+            position: absolute; top: 20px; right: 20px;
+            background-color: #43b3ae; color: black;
+            border-radius: 25px; border: none;
+            padding: 10px 20px; font-weight: bold;
+            box-shadow: 0 4px 10px rgba(67, 179, 174, 0.4);
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
@@ -30,83 +55,82 @@
         id="estatua" 
         src="estatua.glb" 
         ar 
-        ar-modes="scene-viewer webxr quick-look" 
+        ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
         tone-mapping="commerce" 
-        shadow-intensity="1">
+        shadow-intensity="1" 
+        ar-scale="auto"
+        ar-placement="floor">
         
-        <button slot="ar-button" style="background-color: white; border-radius: 4px; border: none; position: absolute; top: 16px; right: 16px; padding: 10px;">
-            👋 Ver no meu espaço (AR)
+        <button slot="ar-button" id="ar-button">
+            👋 Ver na minha mesa
         </button>
-    </model-viewer>
 
-    <div id="controls">
-        <h1 id="anoTexto">Ano: 1886 (Cobre)</h1>
-        <input type="range" id="slider" min="1886" max="1920" value="1886">
-        <p style="font-size: 0.8em; color: #888">Arraste o slider para oxidar</p>
-    </div>
+        <div id="ar-controls">
+            <h2 id="anoTexto">Ano: 1886</h2>
+            <p>Arraste para oxidar a estátua no mundo real</p>
+            <input type="range" id="slider" min="1886" max="1920" value="1886">
+        </div>
+
+    </model-viewer>
 
     <script>
         const modelViewer = document.querySelector("#estatua");
         const slider = document.querySelector("#slider");
         const texto = document.querySelector("#anoTexto");
 
-        // Função auxiliar para misturar cores (Lerp)
-        function lerp(start, end, t) {
-            return start * (1 - t) + end * t;
-        }
+        // Função de mistura de cores (Lerp)
+        function lerp(start, end, t) { return start * (1 - t) + end * t; }
 
         modelViewer.addEventListener("load", () => {
-            // Pega o material do modelo carregado
-            // ATENÇÃO: O modelo GLB precisa ter um material.
-            // Se seu modelo tiver vários materiais, talvez precise iterar sobre eles.
+            // Busca o material do modelo GLB carregado
             const material = modelViewer.model.materials[0];
 
-            // Cores em formato RGB (0 a 1)
-            // Cobre: #b87333 -> [0.72, 0.45, 0.20]
-            // Verde: #2c8a85 -> [0.17, 0.54, 0.52]
-            // Escuro: #4e3223 -> [0.30, 0.19, 0.13]
-
-            const cCobre = [0.72, 0.45, 0.20, 1];
-            const cEscuro = [0.30, 0.19, 0.13, 1];
-            const cVerde = [0.17, 0.54, 0.52, 1];
+            // Definição das cores (RGB Linear)
+            const cCobre = [0.72, 0.45, 0.20, 1]; // Laranja
+            const cEscuro = [0.30, 0.19, 0.13, 1]; // Marrom
+            const cVerde = [0.17, 0.54, 0.52, 1];  // Pátina
 
             slider.addEventListener("input", (e) => {
                 const ano = parseInt(e.target.value);
                 const progresso = (ano - 1886) / (1920 - 1886);
-                texto.innerText = `Ano: ${ano}`;
+                
+                // Atualiza texto
+                if(progresso < 0.4) {
+                    texto.innerText = `Ano: ${ano} (Oxidando...)`;
+                    texto.style.color = "#b87333";
+                } else {
+                    texto.innerText = `Ano: ${ano} (Pátina)`;
+                    texto.style.color = "#43b3ae";
+                }
 
-                let corFinal = [0,0,0,1];
-                let metalicidade = 1;
-                let rugosidade = 0.2;
+                let corFinal, metal, rugosidade;
 
                 if (progresso < 0.4) {
-                    // Fase 1: Escurecer
+                    // Fase 1: Cobre -> Escuro
                     const t = progresso / 0.4;
                     corFinal = [
                         lerp(cCobre[0], cEscuro[0], t),
                         lerp(cCobre[1], cEscuro[1], t),
-                        lerp(cCobre[2], cEscuro[2], t),
-                        1
+                        lerp(cCobre[2], cEscuro[2], t), 1
                     ];
-                    metalicidade = lerp(1.0, 0.6, t);
+                    metal = lerp(1.0, 0.6, t);
                     rugosidade = lerp(0.2, 0.6, t);
                 } else {
-                    // Fase 2: Esverdear
+                    // Fase 2: Escuro -> Verde
                     const t = (progresso - 0.4) / 0.6;
                     corFinal = [
                         lerp(cEscuro[0], cVerde[0], t),
                         lerp(cEscuro[1], cVerde[1], t),
-                        lerp(cEscuro[2], cVerde[2], t),
-                        1
+                        lerp(cEscuro[2], cVerde[2], t), 1
                     ];
-                    metalicidade = lerp(0.6, 0.0, t);
+                    metal = lerp(0.6, 0.0, t);
                     rugosidade = lerp(0.6, 1.0, t);
                 }
 
-                // Aplica a nova cor no modelo AR
+                // Aplica as mudanças físicas no material
                 material.pbrMetallicRoughness.setBaseColorFactor(corFinal);
-                material.pbrMetallicRoughness.setMetallicFactor(metalicidade);
+                material.pbrMetallicRoughness.setMetallicFactor(metal);
                 material.pbrMetallicRoughness.setRoughnessFactor(rugosidade);
             });
         });
